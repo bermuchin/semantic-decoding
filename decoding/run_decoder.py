@@ -4,6 +4,7 @@ import json
 import argparse
 import h5py
 from pathlib import Path
+from tqdm import tqdm  # <--- [추가됨 1] 라이브러리 임포트
 
 import config
 from GPT import GPT
@@ -63,7 +64,9 @@ if __name__ == "__main__":
     # decode responses
     decoder = Decoder(word_times, config.WIDTH)
     sm = StimulusModel(lanczos_mat, tr_stats, word_stats[0], device = config.SM_DEVICE)
-    for sample_index in range(len(word_times)):
+    
+    # <--- [추가됨 2] 반복문을 tqdm으로 감쌌습니다. desc는 진행바 왼쪽에 뜰 텍스트입니다.
+    for sample_index in tqdm(range(len(word_times)), desc="Decoding"):
         trs = affected_trs(decoder.first_difference(), sample_index, lanczos_mat)
         ncontext = decoder.time_window(sample_index, config.LM_TIME, floor = 5)
         beam_nucs = lm.beam_propose(decoder.beam, ncontext)

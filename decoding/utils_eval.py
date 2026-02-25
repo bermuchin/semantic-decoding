@@ -80,7 +80,7 @@ class WER(object):
         scores = []
         for ref_seg, pred_seg in zip(ref, pred):
             if len(ref_seg) == 0 : error = 1.0
-            else: error = wer(ref_seg, pred_seg)
+            else: error = wer(" ".join(ref_seg), " ".join(pred_seg))
             if self.use_score: scores.append(1 - error)
             else: use_score.append(error)
         return np.array(scores)
