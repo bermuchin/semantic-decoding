@@ -29,8 +29,8 @@ RANKED = True
 WIDTH = 200
 NM_ALPHA = 2/3
 LM_TIME = 8
-LM_MASS = 0.9
-LM_RATIO = 0.1
+LM_MASS = 0.7
+LM_RATIO = 0.2
 EXTENSIONS = 5
 
 # evaluation parameters

@@ -8,7 +8,7 @@ from Decoder import Decoder, Hypothesis
 from LanguageModel import LanguageModel
 
 from jiwer import wer
-from datasets import load_metric
+from evaluate import load as load_metric  # datasets 대신 evaluate 사용
 from bert_score import BERTScorer
 
 BAD_WORDS_PERCEIVED_SPEECH = frozenset(["sentence_start", "sentence_end", "br", "lg", "ls", "ns", "sp"])
@@ -72,6 +72,7 @@ def generate_null(pred_times, gpt_checkpoint, n):
 """
 WER
 """
+# utils_eval.py 내의 WER 클래스 수정
 class WER(object):
     def __init__(self, use_score = True):
         self.use_score = use_score
@@ -79,15 +80,23 @@ class WER(object):
     def score(self, ref, pred):
         scores = []
         for ref_seg, pred_seg in zip(ref, pred):
-            if len(ref_seg) == 0 : error = 1.0
-            else: error = wer(" ".join(ref_seg), " ".join(pred_seg))
+            # [수정] 문자열 리스트로 확실히 변환
+            ref_str = " ".join([str(x) for x in ref_seg])
+            pred_str = " ".join([str(x) for x in pred_seg])
+            
+            if len(ref_str.strip()) == 0: 
+                error = 1.0
+            else: 
+                error = wer(ref_str, pred_str)
+            
             if self.use_score: scores.append(1 - error)
-            else: use_score.append(error)
+            else: scores.append(error) # 오타 수정: use_score.append -> scores.append
         return np.array(scores)
     
 """
 BLEU (https://aclanthology.org/P02-1040.pdf)
 """
+# utils_eval.py 내의 BLEU 클래스 수정
 class BLEU(object):
     def __init__(self, n = 4):
         self.metric = load_metric("bleu", keep_in_memory=True)
@@ -96,8 +105,17 @@ class BLEU(object):
     def score(self, ref, pred):
         results = []
         for r, p in zip(ref, pred):
-            self.metric.add_batch(predictions=[p], references=[[r]])
-            results.append(self.metric.compute(max_order = self.n)["bleu"])
+            # [수정] 넘파이 문자열을 일반 문자열로 바꾸고 문장으로 합침
+            ref_str = " ".join([str(x) for x in r])
+            pred_str = " ".join([str(x) for x in p])
+            
+            # evaluate 라이브러리의 bleu 형식에 맞춤
+            if len(ref_str.strip()) == 0 or len(pred_str.strip()) == 0:
+                results.append(0.0)
+                continue
+                
+            res = self.metric.compute(predictions=[pred_str], references=[[ref_str]], max_order = self.n)
+            results.append(res["bleu"])
         return np.array(results)
     
 """
