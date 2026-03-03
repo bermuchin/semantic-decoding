@@ -97,9 +97,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--subject", type=str, required=True)
     parser.add_argument("--gpt", type=str, default="perceived")
-    parser.add_argument("--batch_size", type=int, default=32) # GCN은 가벼우니 32로!
-    parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--lr", type=float, default=1e-4) 
+    parser.add_argument("--batch_size", type=int, default=64) # GCN은 가벼우니 32로!
+    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--lr", type=float, default=5e-5) 
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     input_dim = tr_stats[0].shape[0] * len(config.STIM_DELAYS) # 3072
     num_voxels = len(voxels)
     num_rois = adj_matrix.shape[0] # 400
-    hidden_dim = 64
+    hidden_dim = 128
     
     dataset = TensorDataset(torch.FloatTensor(rstim), torch.FloatTensor(rresp))
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
@@ -182,4 +182,4 @@ if __name__ == "__main__":
         'hidden_dim': hidden_dim,
         'num_rois': num_rois
     }, save_path)
-    print(f"[*] Phase 3 GCN Model saved to {save_path}")
+    print(f"[*] Phase 3 func GCN Model saved to {save_path}")

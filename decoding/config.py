@@ -4,6 +4,7 @@ import numpy as np
 # paths
 
 REPO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DATA_DIR = os.path.join(REPO_DIR, "data")
 DATA_LM_DIR = os.path.join(REPO_DIR, "data_lm")
 DATA_TRAIN_DIR = os.path.join(REPO_DIR, "data_train")
 DATA_TEST_DIR = os.path.join(REPO_DIR, "data_test")
@@ -29,8 +30,8 @@ RANKED = True
 WIDTH = 200
 NM_ALPHA = 2/3
 LM_TIME = 8
-LM_MASS = 0.7
-LM_RATIO = 0.2
+LM_MASS = 0.9
+LM_RATIO = 0.1
 EXTENSIONS = 5
 
 # evaluation parameters
