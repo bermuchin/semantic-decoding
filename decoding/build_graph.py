@@ -68,7 +68,7 @@ def compute_adjacency(subject, threshold=0.5):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--subject", type=str, required=True)
-    parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument("--threshold", type=float, default=0.6)
     args = parser.parse_args()
     
     compute_adjacency(args.subject, args.threshold)

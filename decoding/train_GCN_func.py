@@ -37,21 +37,15 @@ class GraphConvLayer(nn.Module):
         self.register_buffer('adj_norm', torch.FloatTensor(A_norm))
 
     def forward(self, h):
-        # h: (Batch, 400, In_Features)
-        Wh = self.W(h) # (Batch, 400, Out_Features)
-        
-        # Graph Convolution 연산: Normalized_A @ Wh
-        # self.adj_norm: (400, 400)
-        # Wh: (Batch, 400, Out) -> torch.matmul이 자동으로 브로드캐스팅 처리
+        Wh = self.W(h) 
         h_prime = torch.matmul(self.adj_norm, Wh) 
-        
         return F.elu(h_prime)
 
 class Phase3GCNModel(nn.Module):
-    def __init__(self, input_dim, num_voxels, num_rois, adj_matrix, mapping, hidden_dim=64, dropout=0.3):
+    # num_rois, mapping 파라미터 완전 제거
+    def __init__(self, input_dim, num_voxels, adj_matrix, hidden_dim=64, dropout=0.3):
         super(Phase3GCNModel, self).__init__()
         
-        # 1. Global Stimulus Encoder
         self.stim_encoder = nn.Sequential(
             nn.Linear(input_dim, hidden_dim * 2),
             nn.LayerNorm(hidden_dim * 2),
@@ -59,38 +53,31 @@ class Phase3GCNModel(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(hidden_dim * 2, hidden_dim)
         )
-        self.roi_embeddings = nn.Parameter(torch.randn(num_rois, hidden_dim) * 0.01)
+        # roi_embeddings 대신 voxel_embeddings로 이름 변경
+        self.voxel_embeddings = nn.Parameter(torch.randn(num_voxels, hidden_dim) * 0.01)
         
-        # 2. [수정됨] GCN Layers (400 노드)
         self.gcn1 = GraphConvLayer(hidden_dim, hidden_dim, adj_matrix)
         self.gcn2 = GraphConvLayer(hidden_dim, hidden_dim, adj_matrix)
         self.skip1 = nn.Linear(hidden_dim, hidden_dim)
         self.skip2 = nn.Linear(hidden_dim, hidden_dim)
 
-        # 3. Unpooling & Readout
-        self.register_buffer('mapping', torch.LongTensor(mapping))
-        self.voxel_specific_transform = nn.Parameter(torch.randn(num_voxels, hidden_dim) * 0.01)
+        # Unpooling 관련 (mapping, voxel_specific_transform) 제거
         self.readout = nn.Linear(hidden_dim, 1)
 
     def forward(self, stim_features):
         global_state = self.stim_encoder(stim_features)
-        x_roi = global_state.unsqueeze(1) + self.roi_embeddings.unsqueeze(0)
+        x = global_state.unsqueeze(1) + self.voxel_embeddings.unsqueeze(0)
         
-        # GCN Message Passing
-        x_res = x_roi
-        x_roi = self.gcn1(x_roi)
-        x_roi = x_roi + self.skip1(x_res)
+        x_res = x
+        x = self.gcn1(x)
+        x = x + self.skip1(x_res)
         
-        x_res = x_roi
-        x_roi = self.gcn2(x_roi)
-        x_roi = x_roi + self.skip2(x_res)
+        x_res = x
+        x = self.gcn2(x)
+        x = x + self.skip2(x_res)
         
-        # Unpooling (400 -> 10,000)
-        x_voxel = x_roi[:, self.mapping, :] 
-        
-        x_voxel = x_voxel + self.voxel_specific_transform.unsqueeze(0)
-        pred_resp = self.readout(x_voxel).squeeze(-1) 
-        
+        # 10,000개로 흩뿌리는 과정 없이 바로 2000차원 예측값 출력
+        pred_resp = self.readout(x).squeeze(-1) 
         return pred_resp
 
 if __name__ == "__main__":
@@ -108,9 +95,8 @@ if __name__ == "__main__":
     # 1. Data Load
     load_location = os.path.join(config.MODEL_DIR, args.subject)
     
-    graph_data = np.load(os.path.join(load_location, "functional_adjacency_400.npz"))
+    graph_data = np.load(os.path.join(load_location, "adjacency_matrix.npz"))
     adj_matrix = graph_data['adj']
-    mapping = graph_data['mapping']
     
     baseline_em = np.load(os.path.join(load_location, "encoding_model_perceived.npz"))
     voxels = baseline_em["voxels"]
@@ -138,7 +124,7 @@ if __name__ == "__main__":
     input_dim = tr_stats[0].shape[0] * len(config.STIM_DELAYS) # 3072
     num_voxels = len(voxels)
     num_rois = adj_matrix.shape[0] # 400
-    hidden_dim = 128
+    hidden_dim = 256
     
     dataset = TensorDataset(torch.FloatTensor(rstim), torch.FloatTensor(rresp))
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
@@ -146,10 +132,8 @@ if __name__ == "__main__":
     # 2. Model Init
     model = Phase3GCNModel(
         input_dim=input_dim, 
-        num_voxels=num_voxels, 
-        num_rois=num_rois,
+        num_voxels=num_voxels, # 여기서 num_voxels는 2000
         adj_matrix=adj_matrix, 
-        mapping=mapping,
         hidden_dim=hidden_dim
     ).to(device)
     
@@ -179,7 +163,6 @@ if __name__ == "__main__":
         'voxels': voxels,
         'resp_mean': resp_mean,
         'resp_std': resp_std,
-        'hidden_dim': hidden_dim,
-        'num_rois': num_rois
+        'hidden_dim': hidden_dim
     }, save_path)
     print(f"[*] Phase 3 func GCN Model saved to {save_path}")

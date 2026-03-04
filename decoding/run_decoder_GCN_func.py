@@ -32,7 +32,7 @@ class GCNEncodingModel:
         self.resp_std = torch.from_numpy(resp_std).float().to(device)
         
         self.precision = None
-        self.inference_batch_size = 4 # 추론 시 빔서치 폭발 방지 (2080 Ti 최적화)
+        self.inference_batch_size = 16 # 추론 시 빔서치 폭발 방지 (2080 Ti 최적화)
 
     def set_shrinkage(self, alpha):
         print(f"[*] Computing Precision Matrix (Shrinkage Alpha={alpha})...")
@@ -123,19 +123,17 @@ if __name__ == "__main__":
     resp_mean = checkpoint["resp_mean"]
     resp_std = checkpoint["resp_std"]
     hidden_dim = checkpoint["hidden_dim"]
-    num_rois = checkpoint["num_rois"]
     
     # Load Functional Graph 
-    graph_data = np.load(os.path.join(load_location, "functional_adjacency_400.npz"))
+    graph_data = np.load(os.path.join(load_location, "adjacency_matrix.npz"))
     adj_matrix = graph_data['adj']
-    mapping = graph_data['mapping']
     
     input_dim = tr_stats[0].shape[0] * len(config.STIM_DELAYS)
     num_voxels = len(voxels)
     
     # Initialize GCN
     gcn_model = Phase3GCNModel(
-        input_dim, num_voxels, num_rois, adj_matrix, mapping, hidden_dim=hidden_dim
+        input_dim, num_voxels, adj_matrix, hidden_dim=hidden_dim
     ).to(config.EM_DEVICE)
     gcn_model.load_state_dict(checkpoint["model_state_dict"])
     
