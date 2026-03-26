@@ -42,9 +42,25 @@ class LanguageModel():
     def ps(self, contexts):
         """get probability distributions over the next words for each context
         """
+        import torch
+        import numpy as np
+
         context_arr = self.model.get_context_array(contexts)
-        probs = self.model.get_probs(context_arr)
-        return probs[:, len(contexts[0]) - 1] 
+        
+        chunk_size = 50  # 3080 10GB VRAM에 맞춘 쪼개기
+        probs_list = []
+        
+        with torch.no_grad():
+            for i in range(0, len(context_arr), chunk_size):
+                chunk = context_arr[i : i + chunk_size]
+                chunk_probs = self.model.get_probs(chunk)
+                probs_list.append(chunk_probs)
+                
+                torch.cuda.empty_cache()
+                
+        probs = np.concatenate(probs_list, axis=0)
+        
+        return probs[:, len(contexts[0]) - 1]
     
     def beam_propose(self, beam, context_words):
         """get possible extension words for each hypothesis in the decoder beam

@@ -1,0 +1,13 @@
+# Python Cache
+__pycache__/
+*.pyc
+
+# Data and Results Folders (스크린샷에 있는 대용량 폴더들 제외)
+data/
+data_lm/
+data_test/
+data_train/
+models/
+results/
+scores/
+

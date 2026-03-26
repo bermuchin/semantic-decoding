@@ -1,7 +1,7 @@
 import numpy as np
 
 # 저장된 스코어 로드
-path = r'C:\Users\bumjinkim\Desktop\semantic-decoding\scores\S3\perceived_speech\wheretheressmoke_GCN_func.npz'
+path = r'C:\Users\bumjin\Desktop\semantic-decoding\scores\S3\perceived_speech\wheretheressmoke.npz'
 data = np.load(path, allow_pickle=True)
 
 # 스토리 전체 점수 확인

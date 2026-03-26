@@ -14,37 +14,63 @@ from StimulusModel import LMFeatures
 from utils_stim import get_stim
 from utils_resp import get_resp
 
-# --- 정통 GCN Layer (Phase 4 R-GCN을 위한 완벽한 베이스라인) ---
-class GraphConvLayer(nn.Module):
-    def __init__(self, in_features, out_features, adj_matrix):
-        super(GraphConvLayer, self).__init__()
+# --- Multi-head GAT Layer (Sparse Masking 적용) ---
+class MultiHeadGATLayer(nn.Module):
+    def __init__(self, in_features, out_features, adj_matrix, n_heads=4, dropout=0.3, alpha=0.2, concat=True):
+        super(MultiHeadGATLayer, self).__init__()
+        self.n_heads = n_heads
+        self.out_features = out_features
+        self.head_dim = out_features // n_heads # 각 헤드가 담당할 차원 (예: 256 // 4 = 64)
+        self.concat = concat
+
+        # 모든 헤드의 선형 변환을 한 번의 연산으로 처리 (효율성 극대화)
         self.W = nn.Linear(in_features, out_features, bias=False)
+        self.leakyrelu = nn.LeakyReLU(alpha)
+        self.dropout = nn.Dropout(dropout)
+
+        # [Sparse Attention 핵심] 연결되지 않은 엣지를 -inf로 마스킹
+        A_tilde = adj_matrix + np.eye(adj_matrix.shape[0]) # 자기 자신과의 통신(Self-loop) 보장
+        mask = torch.FloatTensor(A_tilde)
         
-        # [GCN 핵심] Symmetric Normalization: D^{-1/2} * A * D^{-1/2}
-        # 1. Self-loop 추가 (자기 자신의 정보도 유지하기 위함)
-        A_tilde = adj_matrix + np.eye(adj_matrix.shape[0])
-        
-        # 2. Degree 행렬 계산
-        D = np.sum(A_tilde, axis=1)
-        D_inv_sqrt = np.power(D, -0.5)
-        D_inv_sqrt[np.isinf(D_inv_sqrt)] = 0.0 # 0으로 나누는 것 방지
-        D_inv_sqrt_mat = np.diag(D_inv_sqrt)
-        
-        # 3. 정규화된 인접 행렬
-        A_norm = np.dot(D_inv_sqrt_mat, np.dot(A_tilde, D_inv_sqrt_mat))
-        
-        # GPU 메모리에 올리기 위해 buffer로 등록
-        self.register_buffer('adj_norm', torch.FloatTensor(A_norm))
+        # 인접 행렬 값이 0보다 크면 0을, 연결이 없으면 -inf를 할당
+        # (Softmax에 -inf가 들어가면 어텐션 가중치가 완벽히 0이 되어 연산 배제 효과)
+        mask = torch.where(mask > 0, torch.zeros_like(mask), torch.full_like(mask, float('-inf')))
+        self.register_buffer('adj_mask', mask)
 
     def forward(self, h):
-        Wh = self.W(h) 
-        h_prime = torch.matmul(self.adj_norm, Wh) 
-        return F.elu(h_prime)
+        B, N, _ = h.shape
+        
+        # 1. 선형 변환 및 헤드 분할 (Batch, Nodes, Heads, Head_dim)
+        Wh = self.W(h).view(B, N, self.n_heads, self.head_dim)
+        
+        # 연산을 위해 (Batch, Heads, Nodes, Head_dim) 형태로 전치
+        Wh = Wh.transpose(1, 2) 
+        
+        # 2. 어텐션 스코어 계산 (Dot-Product 방식) -> (Batch, Heads, Nodes, Nodes)
+        scores = torch.matmul(Wh, Wh.transpose(-2, -1)) / np.sqrt(self.head_dim)
+        
+        # 3. 마스킹 적용 (Broadcasting: adj_mask가 모든 배치와 헤드에 동일하게 적용됨)
+        scores = scores + self.adj_mask.unsqueeze(0).unsqueeze(0)
+        
+        # 4. Softmax 및 정보 집계
+        attention = F.softmax(scores, dim=-1)
+        attention = self.dropout(attention)
+        
+        h_prime = torch.matmul(attention, Wh) # (Batch, Heads, Nodes, Head_dim)
+        
+        if self.concat:
+            # 여러 전문가(Heads)의 의견을 하나로 이어 붙임 (Concatenation)
+            h_prime = h_prime.transpose(1, 2).contiguous().view(B, N, self.out_features)
+            return F.elu(h_prime)
+        else:
+            # 마지막 레이어일 경우 의견을 평균 냄
+            h_prime = h_prime.mean(dim=1)
+            return h_prime
 
-class Phase3GCNModel(nn.Module):
-    # num_rois, mapping 파라미터 완전 제거
-    def __init__(self, input_dim, num_voxels, adj_matrix, hidden_dim=64, dropout=0.3):
-        super(Phase3GCNModel, self).__init__()
+# --- 2000 Node GAT 모델 ---
+class GATModel(nn.Module):
+    def __init__(self, input_dim, num_voxels, adj_matrix, hidden_dim=128, n_heads=4, dropout=0.3):
+        super(GATModel, self).__init__()
         
         self.stim_encoder = nn.Sequential(
             nn.Linear(input_dim, hidden_dim * 2),
@@ -53,15 +79,15 @@ class Phase3GCNModel(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(hidden_dim * 2, hidden_dim)
         )
-        # roi_embeddings 대신 voxel_embeddings로 이름 변경
         self.voxel_embeddings = nn.Parameter(torch.randn(num_voxels, hidden_dim) * 0.01)
         
-        self.gcn1 = GraphConvLayer(hidden_dim, hidden_dim, adj_matrix)
-        self.gcn2 = GraphConvLayer(hidden_dim, hidden_dim, adj_matrix)
+        # 2층의 Multi-head GAT
+        self.gat1 = MultiHeadGATLayer(hidden_dim, hidden_dim, adj_matrix, n_heads=n_heads, dropout=dropout, concat=True)
+        self.gat2 = MultiHeadGATLayer(hidden_dim, hidden_dim, adj_matrix, n_heads=n_heads, dropout=dropout, concat=True)
+        
         self.skip1 = nn.Linear(hidden_dim, hidden_dim)
         self.skip2 = nn.Linear(hidden_dim, hidden_dim)
 
-        # Unpooling 관련 (mapping, voxel_specific_transform) 제거
         self.readout = nn.Linear(hidden_dim, 1)
 
     def forward(self, stim_features):
@@ -69,14 +95,13 @@ class Phase3GCNModel(nn.Module):
         x = global_state.unsqueeze(1) + self.voxel_embeddings.unsqueeze(0)
         
         x_res = x
-        x = self.gcn1(x)
+        x = self.gat1(x)
         x = x + self.skip1(x_res)
         
         x_res = x
-        x = self.gcn2(x)
+        x = self.gat2(x)
         x = x + self.skip2(x_res)
         
-        # 10,000개로 흩뿌리는 과정 없이 바로 2000차원 예측값 출력
         pred_resp = self.readout(x).squeeze(-1) 
         return pred_resp
 
@@ -84,13 +109,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--subject", type=str, required=True)
     parser.add_argument("--gpt", type=str, default="perceived")
-    parser.add_argument("--batch_size", type=int, default=64) # GCN은 가벼우니 32로!
+    
+    # [주의] GAT는 메모리를 많이 쓰므로 기본 배치 사이즈를 8로 대폭 낮췄습니다.
+    parser.add_argument("--batch_size", type=int, default=2) 
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--lr", type=float, default=5e-5) 
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[*] Training Phase 3 func GCN on {device} (Batch: {args.batch_size})")
+    print(f"[*] Training func GAT on {device} (Batch: {args.batch_size})")
 
     # 1. Data Load
     load_location = os.path.join(config.MODEL_DIR, args.subject)
@@ -123,24 +150,24 @@ if __name__ == "__main__":
     
     input_dim = tr_stats[0].shape[0] * len(config.STIM_DELAYS) # 3072
     num_voxels = len(voxels)
-    num_rois = adj_matrix.shape[0] # 400
-    hidden_dim = 256
+    hidden_dim = 128
     
     dataset = TensorDataset(torch.FloatTensor(rstim), torch.FloatTensor(rresp))
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
     
     # 2. Model Init
-    model = Phase3GCNModel(
+    model = GATModel(
         input_dim=input_dim, 
-        num_voxels=num_voxels, # 여기서 num_voxels는 2000
+        num_voxels=num_voxels,
         adj_matrix=adj_matrix, 
-        hidden_dim=hidden_dim
+        hidden_dim=hidden_dim,
+        n_heads=4 # 헤드 4개 지정
     ).to(device)
     
     criterion = nn.MSELoss()
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     
-    print("[*] Starting Phase 3 func GCN Training...")
+    print("[*] Starting func GAT Training...")
     model.train()
     for epoch in range(args.epochs):
         total_loss = 0
@@ -153,9 +180,11 @@ if __name__ == "__main__":
             optimizer.step()
             total_loss += loss.item()
         print(f"Epoch {epoch+1}/{args.epochs} | Loss: {total_loss/len(dataloader):.6f}")
+
+        torch.cuda.empty_cache()
         
     # 3. Save Checkpoint
-    save_path = os.path.join(config.MODEL_DIR, args.subject, f"gcn_phase3_func_{args.gpt}.pt")
+    save_path = os.path.join(config.MODEL_DIR, args.subject, f"gat_func_{args.gpt}.pt")
     torch.save({
         'model_state_dict': model.state_dict(),
         'tr_stats': tr_stats, 
@@ -163,6 +192,7 @@ if __name__ == "__main__":
         'voxels': voxels,
         'resp_mean': resp_mean,
         'resp_std': resp_std,
-        'hidden_dim': hidden_dim
+        'hidden_dim': hidden_dim,
+        'n_heads': 4
     }, save_path)
-    print(f"[*] Phase 3 func GCN Model saved to {save_path}")
+    print(f"[*] func GAT Model saved to {save_path}")
