@@ -31,8 +31,8 @@ class GATEncodingModel:
         self.resp_std = torch.from_numpy(resp_std).float().to(device)
         
         self.precision = None
-        # [VRAM 방어] 빔 폭이 200이므로 1번씩 처리하여 OOM 및 TDR 에러 원천 차단
-        self.inference_batch_size = 1 
+        # [VRAM 방어] H100 환경을 고려하여 배치 사이즈 상향 조정 가능 (예: 16~32)
+        self.inference_batch_size = 4
 
     def set_shrinkage(self, alpha):
         print(f"[*] Computing Precision Matrix (Shrinkage Alpha={alpha})...")
@@ -149,61 +149,76 @@ if __name__ == "__main__":
     word_times, tr_times = predict_word_times(word_rate, full_resp, starttime=starttime)
     lanczos_mat = get_lanczos_mat(word_times, tr_times)
 
-    # [수정됨] 성능 타협 없이 빔 폭 200 유지!
+    # 빔 폭 설정
     print(f"[*] Setting Beam Width to 200 (No Compromise Mode)")
     decoder = Decoder(word_times, 200) 
     sm = StimulusModel(lanczos_mat, tr_stats, word_stats[0], device=config.SM_DEVICE)
     
     print("[*] Decoding... (func GAT Inference)")
 
+    # --- 최적화된 디코딩 루프 ---
+    # --- 최적화된 하이브리드 배치 디코딩 루프 ---
     with torch.no_grad():
         for sample_index in range(len(word_times)):
             trs = affected_trs(decoder.first_difference(), sample_index, lanczos_mat)
             ncontext = decoder.time_window(sample_index, config.LM_TIME, floor=5)
-        
-            # GPT 후보 제안 (이 시점에는 이전 단어 리스트만 참조하므로 안전함)
             beam_nucs = lm.beam_propose(decoder.beam, ncontext)
-        
-            for c, (hyp, nextensions) in enumerate(decoder.get_hypotheses()):
-                nuc, logprobs = beam_nucs[c]
-                if len(nuc) < 1: continue
             
-                # 1. 후보 단어 확장 및 임베딩 생성
-                extend_words = [hyp.words + [x] for x in nuc]
-                extend_embs = list(features.extend(extend_words))
+            # 가설들을 적정 단위(예: 20개)로 나누어 처리합니다.
+            sub_batch_size = 20 
+            all_hyps = list(decoder.get_hypotheses())
+            
+            for i in range(0, len(all_hyps), sub_batch_size):
+                sub_hyps = all_hyps[i : i + sub_batch_size]
                 
-                # 2. Stimulus 변종 생성 (이 객체가 시스템 RAM을 가장 많이 점유함)
-                stim = sm.make_variants(sample_index, hyp.embs, extend_embs, trs)
-            
-                # 3. GAT 추론 (VRAM 방어 로직 포함됨)
-                likelihoods = em.prs(stim, trs)
-            
-                # 4. 가설 확장 및 결과 저장
-                local_extensions = [Hypothesis(parent=hyp, extension=x) for x in zip(nuc, logprobs, extend_embs)]
-                decoder.add_extensions(local_extensions, likelihoods, nextensions)
+                sub_stims = []
+                sub_metadata = []
+                
+                # 1. 미니 배치만큼만 데이터 수집
+                for c_idx, (hyp, nextensions) in enumerate(sub_hyps):
+                    actual_idx = i + c_idx
+                    nuc, logprobs = beam_nucs[actual_idx]
+                    if len(nuc) < 1: continue
+                    
+                    extend_words = [hyp.words + [x] for x in nuc]
+                    extend_embs = list(features.extend(extend_words))
+                    
+                    stim = sm.make_variants(sample_index, hyp.embs, extend_embs, trs)
+                    sub_stims.append(stim)
+                    sub_metadata.append((hyp, nuc, logprobs, extend_embs, nextensions))
+                
+                # 2. 수집된 미니 배치를 한 번에 연산
+                if sub_stims:
+                    # CPU에서의 cat 연산 규모를 줄여 병목 방지
+                    big_sub_stim = torch.cat(sub_stims, dim=0) 
+                    sub_likelihoods = em.prs(big_sub_stim, trs) 
+                    
+                    # 3. 결과 배분
+                    curr_pos = 0
+                    for hyp, nuc, logprobs, extend_embs, nextensions in sub_metadata:
+                        n_vars = len(nuc)
+                        likes = sub_likelihoods[curr_pos : curr_pos + n_vars]
+                        
+                        local_exts = [Hypothesis(parent=hyp, extension=x) 
+                                     for x in zip(nuc, logprobs, extend_embs)]
+                        decoder.add_extensions(local_exts, likes, nextensions)
+                        curr_pos += n_vars
+                
+                # 미니 배치 처리 후 즉시 메모리 해제
+                del sub_stims
+                del sub_metadata
+                gc.collect()
 
-                # --- [추가] 가설 하나당 거대 객체 즉시 소거 (System RAM 방어 핵심) ---
-                del stim
-                del extend_embs
-                del extend_words
-                # 50개 가설마다 Python 메모리 강제 정리
-                if c % 50 == 0:
-                    gc.collect()
-            
-            # 한 스텝이 끝나면 빔 확정
+            # 스텝 종료 후 빔 확장
             decoder.extend(verbose=False)
-        
-            # [VRAM & RAM 방어] 매 스텝 끝에서 최종 정리
-            gc.collect()
-            torch.cuda.empty_cache()
-        
+            
+            # 10 스텝마다 GPU 캐시 완전 비우기
             if sample_index % 10 == 0:
+                torch.cuda.empty_cache()
                 if decoder.beam and decoder.beam[0].words:
-                    print(f"Step {sample_index}/{len(word_times)}: ...{' '.join(decoder.beam[0].words[-5:])} [Memory Optimized]")
-                else:
-                    print(f"Step {sample_index}/{len(word_times)}: [Start] [Memory Optimized]")
+                    print(f"Step {sample_index}/{len(word_times)}: {' '.join(decoder.beam[0].words[-5:])}")
 
-    # Save Results
+    # 최종 결과 저장
     save_location = os.path.join(config.RESULT_DIR, args.subject, args.experiment)
     os.makedirs(save_location, exist_ok=True)
     save_path = os.path.join(save_location, args.task + "_GAT_func")

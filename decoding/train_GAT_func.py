@@ -69,7 +69,7 @@ class MultiHeadGATLayer(nn.Module):
 
 # --- 2000 Node GAT 모델 ---
 class GATModel(nn.Module):
-    def __init__(self, input_dim, num_voxels, adj_matrix, hidden_dim=128, n_heads=4, dropout=0.3):
+    def __init__(self, input_dim, num_voxels, adj_matrix, hidden_dim=256, n_heads=4, dropout=0.3):
         super(GATModel, self).__init__()
         
         self.stim_encoder = nn.Sequential(
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     parser.add_argument("--gpt", type=str, default="perceived")
     
     # [주의] GAT는 메모리를 많이 쓰므로 기본 배치 사이즈를 8로 대폭 낮췄습니다.
-    parser.add_argument("--batch_size", type=int, default=2) 
+    parser.add_argument("--batch_size", type=int, default=8) 
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--lr", type=float, default=5e-5) 
     args = parser.parse_args()
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     
     input_dim = tr_stats[0].shape[0] * len(config.STIM_DELAYS) # 3072
     num_voxels = len(voxels)
-    hidden_dim = 128
+    hidden_dim = 256
     
     dataset = TensorDataset(torch.FloatTensor(rstim), torch.FloatTensor(rresp))
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
