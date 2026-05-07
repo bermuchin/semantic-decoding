@@ -14,6 +14,30 @@ from StimulusModel import LMFeatures
 from utils_stim import get_stim
 from utils_resp import get_resp
 
+def pearson_correlation(x, y):
+    x_mean = torch.mean(x, dim=0, keepdim=True)
+    y_mean = torch.mean(y, dim=0, keepdim=True)
+    x_centered = x - x_mean
+    y_centered = y - y_mean
+    
+    bilinear = torch.sum(x_centered * y_centered, dim=0)
+    norm_x = torch.sqrt(torch.sum(x_centered**2, dim=0))
+    norm_y = torch.sqrt(torch.sum(y_centered**2, dim=0))
+    
+    corr = bilinear / (norm_x * norm_y + 1e-8)
+    return torch.mean(corr)
+
+class HybridLoss(nn.Module):
+    def __init__(self, lambd=0.5):
+        super(HybridLoss, self).__init__()
+        self.mse = nn.MSELoss()
+        self.lambd = lambd
+
+    def forward(self, pred, target):
+        mse_loss = self.mse(pred, target)
+        corr_loss = 1 - pearson_correlation(pred, target)
+        return mse_loss + self.lambd * corr_loss
+
 # --- Multi-head GAT Layer (기존과 동일, 건드리지 않음) ---
 class MultiHeadGATLayer(nn.Module):
     def __init__(self, in_features, out_features, adj_matrix, n_heads=4, dropout=0.3, alpha=0.2, concat=True):
