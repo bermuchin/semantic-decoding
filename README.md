@@ -49,19 +49,23 @@ python3 decoding/build_roi_graph.py --subject [SUBJECT_ID]
 
 ### 2. Graph Refinement
 Refine the anatomical scaffold using functional synchronization (Hadamard product masking).
+```bash
 python3 decoding/refine_roi_graph.py --subject [SUBJECT_ID] --top 20
-
+```
 ### 3. Training the Scaffold-GAT
-Train the encoding model using the updated hybrid loss function (MSE + Pearson).  
+Train the encoding model using the updated hybrid loss function (MSE + Pearson).
+```bash
 python3 train_MGAT.py --subject [SUBJECT_ID] --batch_size 2 --lambd 0.5
-
+```
 ### 4. Language Reconstruction (Decoding)
 Reconstruct stimulus narratives from held-out brain responses.
+```bash
 python3 decoding/run_decoder_MGAT.py --subject [SUBJECT_ID] --experiment perceived_speech --task [TASK_NAME]
-
+```
 ### 5. Evaluation
 Assess reconstruction quality using BERTScore and other linguistic metrics.
+```bash
 python3 decoding/evaluate_predictions_GAT_func.py --subject [SUBJECT_ID] --experiment perceived_speech --task [TASK_NAME]
-
+```
 ## Performance Summary
 The framework achieves a BERTScore of 0.8259, significantly outperforming standard linear baselines (0.8116) and unconstrained GAT models (0.7997). Our analysis confirms that anchoring functional signals to a stable anatomical substrate provides the necessary inductive bias to overcome extreme fMRI data scarcity.
