@@ -1,35 +1,66 @@
-# Semantic Decoding
+# Scaffold-GAT: Grounding Brain Dynamics in Neural Anatomy
 
-This repository contains code used in the paper "Semantic reconstruction of continuous language from non-invasive brain recordings" by Jerry Tang, Amanda LeBel, Shailee Jain, and Alexander G. Huth.  
+[cite_start]This repository contains the official implementation of **Scaffold-GAT**, a multiplex graph learning framework designed for neural language encoding from functional Magnetic Resonance Imaging (fMRI).
 
-## Usage
+## Overview
 
-1. Download [language model data](https://utexas.box.com/shared/static/7ab8qm5e3i0vfsku0ee4dc6hzgeg7nyh.zip) and extract contents into new `data_lm/` directory. 
+[cite_start]Scaffold-GAT addresses the limitations of traditional voxel-wise linear models and unconstrained Graph Neural Networks (GNNs) by explicitly anchoring dynamic functional signals onto a stable anatomical scaffold. [cite_start]By modeling the brain as a multiplex network, the framework achieves state-of-the-art performance in reconstructing natural language from neural activity.
 
-2. Download [training data](https://utexas.box.com/shared/static/3go1g4gcdar2cntjit2knz5jwr3mvxwe.zip) and extract contents into new `data_train/` directory. Stimulus data for `train_stimulus/` and response data for `train_response/[SUBJECT_ID]` can be downloaded from [OpenNeuro](https://openneuro.org/datasets/ds003020/).
+### Key Features
+* [cite_start]**Multiplex Brain Graph**: Separates anatomical and functional dependencies into distinct topological layers to prevent "relational blurring".
+* [cite_start]**Structural Gating**: Implements a hard-gating mechanism that uses anatomical priors to regularize functional message passing, ensuring biologically plausible information flow.
+* [cite_start]**Hybrid Loss Function**: Optimizes both signal amplitude (via MSE) and temporal dynamics (via Pearson correlation).
+* [cite_start]**Biological Alignment**: The model reaches peak performance when its spatial scale aligns with the core language network ($N \approx 2,000$ voxels).
 
-3. Download [test data](https://utexas.box.com/shared/static/ae5u0t3sh4f46nvmrd3skniq0kk2t5uh.zip) and extract contents into new `data_test/` directory. Stimulus data for `test_stimulus/[EXPERIMENT]` and response data for `test_response/[SUBJECT_ID]` can be downloaded from [OpenNeuro](https://openneuro.org/datasets/ds004510/).
+---
 
-4. Estimate the encoding model. The encoding model predicts brain responses from contextual features of the stimulus extracted using GPT. The `--gpt` parameter determines the GPT checkpoint used. Use `--gpt imagined` when estimating models for imagined speech data, as this will extract features using a GPT checkpoint that was not trained on the imagined speech stories. Use `--gpt perceived` when estimating models for other data. The encoding model will be saved in `MODEL_DIR/[SUBJECT_ID]`. Alternatively, download [pre-fit encoding models](https://utexas.box.com/s/ri13t06iwpkyk17h8tfk0dtyva7qtqlz).
+## Attribution & Baseline
 
-```bash
-python3 decoding/train_EM.py --subject [SUBJECT_ID] --gpt perceived
-```
+This project is built upon and extends the semantic decoding framework originally developed by **Tang et al. (2023)[cite_start]**[cite: 36]. We acknowledge the authors for their foundational work and for providing the open-source codebase that served as the baseline for our research:
 
-5. Estimate the word rate model. The word rate model predicts word times from brain responses. Two word rate models will be saved in `MODEL_DIR/[SUBJECT_ID]`. The `word_rate_model_speech` model uses brain responses in speech regions, and should be used when decoding imagined speech and perceived movie data. The `word_rate_model_auditory` model uses brain responses in auditory cortex, and should be used when decoding perceived speech data. Alternatively, download [pre-fit word rate models](https://utexas.box.com/s/ri13t06iwpkyk17h8tfk0dtyva7qtqlz).
+* [cite_start]**Original Paper**: [Semantic reconstruction of continuous language from non-invasive brain recordings](https://www.nature.com/articles/s41593-023-01304-9) (Nature Neuroscience, 2023) [cite: 36]
+* [cite_start]**Original Repository**: [Semantic Decoding](https://github.com/ut-huth-lab/semantic-decoding) [cite: 36]
 
-```bash
-python3 decoding/train_WR.py --subject [SUBJECT_ID]
-```
+[cite_start]Scaffold-GAT introduces a multiplex graph learning approach and structural gating mechanisms to further improve the robustness and biological alignment of this baseline framework.
 
-6. Test the decoder on brain responses not used in model estimation. The decoder predictions will be saved in `RESULTS_DIR/[SUBJECT_ID]/[EXPERIMENT_NAME]`.
+---
 
-```bash
-python3 decoding/run_decoder.py --subject [SUBJECT_ID] --experiment [EXPERIMENT_NAME] --task [TASK_NAME]
-```
+## Installation & Data Preparation
 
-7. Evaluate the decoder predictions against reference transcripts. The evaluation results will be saved in `SCORE_DIR/[SUBJECT_ID]/[EXPERIMENT_NAME]`.
+1.  **Environment**: Ensure you have Python 3.x and PyTorch installed.
+2.  **External Data**: 
+    * [cite_start]Extract GPT language model data into `data_lm/`[cite: 36].
+    * [cite_start]Place training and test fMRI responses in `data_train/` and `data_test/` respectively[cite: 36].
+3.  [cite_start]**ROIs**: Subject-specific ROI files (e.g., `s3.json`) must be present in `data_train/ROIs/`[cite: 36].
 
-```bash
-python3 decoding/evaluate_predictions.py --subject [SUBJECT_ID] --experiment [EXPERIMENT_NAME] --task [TASK_NAME]
-```
+---
+
+## Execution Pipeline
+
+### 1. Graph Construction
+Build the initial functional and anatomical adjacency matrices.
+
+# Construct functional connectivity graph
+python3 decoding/build_graph.py --subject [SUBJECT_ID] --threshold 0.6
+
+# Construct ROI-based anatomical graph
+python3 decoding/build_roi_graph.py --subject [SUBJECT_ID]
+
+### 2. Graph Refinement
+Refine the anatomical scaffold using functional synchronization (Hadamard product masking).
+python3 decoding/refine_roi_graph.py --subject [SUBJECT_ID] --top 20
+
+### 3. Training the Scaffold-GAT
+Train the encoding model using the updated hybrid loss function (MSE + Pearson).  
+python3 train_MGAT.py --subject [SUBJECT_ID] --batch_size 2 --lambd 0.5
+
+### 4. Language Reconstruction (Decoding)
+Reconstruct stimulus narratives from held-out brain responses.
+python3 decoding/run_decoder_MGAT.py --subject [SUBJECT_ID] --experiment perceived_speech --task [TASK_NAME]
+
+### 5. Evaluation
+Assess reconstruction quality using BERTScore and other linguistic metrics.
+python3 decoding/evaluate_predictions_GAT_func.py --subject [SUBJECT_ID] --experiment perceived_speech --task [TASK_NAME]
+
+## Performance Summary
+The framework achieves a BERTScore of 0.8259, significantly outperforming standard linear baselines (0.8116) and unconstrained GAT models (0.7997). Our analysis confirms that anchoring functional signals to a stable anatomical substrate provides the necessary inductive bias to overcome extreme fMRI data scarcity.
