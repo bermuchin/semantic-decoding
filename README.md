@@ -39,7 +39,7 @@ This project is built upon and extends the semantic decoding framework originall
 
 ### 1. Graph Construction
 Build the initial functional and anatomical adjacency matrices.
-
+```bash
 # Construct functional connectivity graph
 python3 decoding/build_graph.py --subject [SUBJECT_ID] --threshold 0.6
 
