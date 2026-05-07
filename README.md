@@ -1,27 +1,27 @@
 # Scaffold-GAT: Grounding Brain Dynamics in Neural Anatomy
 
-[cite_start]This repository contains the official implementation of **Scaffold-GAT**, a multiplex graph learning framework designed for neural language encoding from functional Magnetic Resonance Imaging (fMRI).
+This repository contains the official implementation of **Scaffold-GAT**, a multiplex graph learning framework designed for neural language encoding from functional Magnetic Resonance Imaging (fMRI).
 
 ## Overview
 
-[cite_start]Scaffold-GAT addresses the limitations of traditional voxel-wise linear models and unconstrained Graph Neural Networks (GNNs) by explicitly anchoring dynamic functional signals onto a stable anatomical scaffold. [cite_start]By modeling the brain as a multiplex network, the framework achieves state-of-the-art performance in reconstructing natural language from neural activity.
+Scaffold-GAT addresses the limitations of traditional voxel-wise linear models and unconstrained Graph Neural Networks (GNNs) by explicitly anchoring dynamic functional signals onto a stable anatomical scaffold. By modeling the brain as a multiplex network, the framework achieves state-of-the-art performance in reconstructing natural language from neural activity.
 
 ### Key Features
-* [cite_start]**Multiplex Brain Graph**: Separates anatomical and functional dependencies into distinct topological layers to prevent "relational blurring".
-* [cite_start]**Structural Gating**: Implements a hard-gating mechanism that uses anatomical priors to regularize functional message passing, ensuring biologically plausible information flow.
-* [cite_start]**Hybrid Loss Function**: Optimizes both signal amplitude (via MSE) and temporal dynamics (via Pearson correlation).
-* [cite_start]**Biological Alignment**: The model reaches peak performance when its spatial scale aligns with the core language network ($N \approx 2,000$ voxels).
+**Multiplex Brain Graph**: Separates anatomical and functional dependencies into distinct topological layers to prevent "relational blurring".
+**Structural Gating**: Implements a hard-gating mechanism that uses anatomical priors to regularize functional message passing, ensuring biologically plausible information flow.
+**Hybrid Loss Function**: Optimizes both signal amplitude (via MSE) and temporal dynamics (via Pearson correlation).
+**Biological Alignment**: The model reaches peak performance when its spatial scale aligns with the core language network ($N \approx 2,000$ voxels).
 
 ---
 
 ## Attribution & Baseline
 
-This project is built upon and extends the semantic decoding framework originally developed by **Tang et al. (2023)[cite_start]**[cite: 36]. We acknowledge the authors for their foundational work and for providing the open-source codebase that served as the baseline for our research:
+This project is built upon and extends the semantic decoding framework originally developed by **Tang et al. (2023)**. We acknowledge the authors for their foundational work and for providing the open-source codebase that served as the baseline for our research:
 
-* [cite_start]**Original Paper**: [Semantic reconstruction of continuous language from non-invasive brain recordings](https://www.nature.com/articles/s41593-023-01304-9) (Nature Neuroscience, 2023) [cite: 36]
-* [cite_start]**Original Repository**: [Semantic Decoding](https://github.com/ut-huth-lab/semantic-decoding) [cite: 36]
+**Original Paper**: [Semantic reconstruction of continuous language from non-invasive brain recordings](https://www.nature.com/articles/s41593-023-01304-9) (Nature Neuroscience, 2023)
+**Original Repository**: [Semantic Decoding](https://github.com/ut-huth-lab/semantic-decoding) 
 
-[cite_start]Scaffold-GAT introduces a multiplex graph learning approach and structural gating mechanisms to further improve the robustness and biological alignment of this baseline framework.
+Scaffold-GAT introduces a multiplex graph learning approach and structural gating mechanisms to further improve the robustness and biological alignment of this baseline framework.
 
 ---
 
@@ -29,9 +29,9 @@ This project is built upon and extends the semantic decoding framework originall
 
 1.  **Environment**: Ensure you have Python 3.x and PyTorch installed.
 2.  **External Data**: 
-    * [cite_start]Extract GPT language model data into `data_lm/`[cite: 36].
-    * [cite_start]Place training and test fMRI responses in `data_train/` and `data_test/` respectively[cite: 36].
-3.  [cite_start]**ROIs**: Subject-specific ROI files (e.g., `s3.json`) must be present in `data_train/ROIs/`[cite: 36].
+    Extract GPT language model data into `data_lm/`.
+    Place training and test fMRI responses in `data_train/` and `data_test/` respectively.
+3.  **ROIs**: Subject-specific ROI files (e.g., `s3.json`) must be present in `data_train/ROIs/`.
 
 ---
 
