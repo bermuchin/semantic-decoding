@@ -19,6 +19,7 @@ Scaffold-GAT addresses the limitations of traditional voxel-wise linear models a
 This project is built upon and extends the semantic decoding framework originally developed by **Tang et al. (2023)**. We acknowledge the authors for their foundational work and for providing the open-source codebase that served as the baseline for our research:
 
 **Original Paper**: [Semantic reconstruction of continuous language from non-invasive brain recordings](https://www.nature.com/articles/s41593-023-01304-9) (Nature Neuroscience, 2023)
+
 **Original Repository**: [Semantic Decoding](https://github.com/ut-huth-lab/semantic-decoding) 
 
 Scaffold-GAT introduces a multiplex graph learning approach and structural gating mechanisms to further improve the robustness and biological alignment of this baseline framework.
