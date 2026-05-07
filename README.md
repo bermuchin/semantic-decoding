@@ -45,6 +45,7 @@ python3 decoding/build_graph.py --subject [SUBJECT_ID] --threshold 0.6
 
 # Construct ROI-based anatomical graph
 python3 decoding/build_roi_graph.py --subject [SUBJECT_ID]
+```
 
 ### 2. Graph Refinement
 Refine the anatomical scaffold using functional synchronization (Hadamard product masking).
