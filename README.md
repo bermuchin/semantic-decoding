@@ -1,6 +1,6 @@
 # Scaffold-GAT: Grounding Brain Dynamics in Neural Anatomy
 
-> **🎉 Official Repository for the paper accepted to the ACM SIGKDD 2026 Undergraduate Consortium**
+**🎉 Official Repository for the paper accepted to the ACM SIGKDD 2026 Undergraduate Consortium**
 
 <div align="center">
   <img src="main_figure.png" alt="Scaffold-GAT Main Architecture" width="600">
