@@ -95,6 +95,6 @@ If you find our work or this repository useful in your research, please consider
   booktitle = {Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '26)},
   year = {2026},
   publisher = {ACM},
-  address = {New York, NY, USA}
+  address = {Jeju, Korea}
 }
 ```
