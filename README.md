@@ -2,7 +2,9 @@
 
 > **🎉 Official Repository for the paper accepted to the ACM SIGKDD 2026 Undergraduate Consortium**
 
-<img src="main_figure.png" alt="Scaffold-GAT Main Architecture" width="500">
+<div align="center">
+  <img src="main_figure.png" alt="Scaffold-GAT Main Architecture" width="600">
+</div>
 
 This repository contains the official implementation of **Scaffold-GAT**, a multiplex graph learning framework designed for neural language encoding from functional Magnetic Resonance Imaging (fMRI).
 
