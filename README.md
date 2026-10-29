@@ -1,6 +1,6 @@
 # Scaffold-GAT: Grounding Brain Dynamics in Neural Anatomy
 
-**🎉 Official Repository for the paper accepted to the ACM SIGKDD 2026 Undergraduate Consortium**
+**🎉 Official Repository for Scaffold-GAT accepted to the ACM SIGKDD 2026 Undergraduate Consortium**
 
 This repository contains the official implementation of **Scaffold-GAT**, a multiplex graph learning framework designed for neural language encoding from functional Magnetic Resonance Imaging (fMRI).
 
