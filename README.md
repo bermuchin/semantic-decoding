@@ -2,10 +2,6 @@
 
 **🎉 Official Repository for the paper accepted to the ACM SIGKDD 2026 Undergraduate Consortium**
 
-<div align="center">
-  <img src="main_figure.png" alt="Scaffold-GAT Main Architecture" width="600">
-</div>
-
 This repository contains the official implementation of **Scaffold-GAT**, a multiplex graph learning framework designed for neural language encoding from functional Magnetic Resonance Imaging (fMRI).
 
 ## Overview
@@ -15,12 +11,15 @@ Scaffold-GAT addresses the limitations of traditional voxel-wise linear models a
 ### Key Features
 * **Multiplex Brain Graph**: Separates anatomical and functional dependencies into distinct topological layers to prevent "relational blurring".
 * **Structural Gating**: Implements a hard-gating mechanism that uses anatomical priors to regularize functional message passing, ensuring biologically plausible information flow.
-* **Hybrid Loss Function**: Optimizes both signal amplitude (via MSE) and temporal dynamics (via Pearson correlation).
 * **Biological Alignment**: The model reaches peak performance when its spatial scale aligns with the core language network ($N \approx 2,000$ voxels).
 
 ---
 
 ## Methodology
+
+<div align="center">
+  <img src="main_figure.png" alt="Scaffold-GAT Main Architecture" width="600">
+</div>
 
 Scaffold-GAT operates through three core mechanisms to ensure robust neural representation learning even in data-scarce and high-noise environments:
 
